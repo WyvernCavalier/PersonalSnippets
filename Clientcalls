@@ -1,0 +1,21 @@
+VariableLengthDataClient variableLengthClient = new VariableLengthDataClient();
+variableLengthClient.Connect("127.0.0.1", 12345);
+
+Console.WriteLine($"Client State: {variableLengthClient.GetState()}");
+variableLengthClient.SendVariableLengthData(new byte[] { /* your data here */ });
+
+// To close the client
+variableLengthClient.Close();
+Console.WriteLine($"Client State: {variableLengthClient.GetState()}");
+
+//////
+
+FixedLengthDataClient fixedLengthClient = new FixedLengthDataClient();
+fixedLengthClient.Connect("127.0.0.1", 12345);
+
+Console.WriteLine($"Client State: {fixedLengthClient.GetState()}");
+fixedLengthClient.SendFixedLengthData(new byte[] { /* your data here */ });
+
+// To close the client
+fixedLengthClient.Close();
+Console.WriteLine($"Client State: {fixedLengthClient.GetState()}");
