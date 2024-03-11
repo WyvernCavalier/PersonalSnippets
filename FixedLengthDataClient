@@ -1,0 +1,56 @@
+class FixedLengthDataClient
+{
+    private TcpClient tcpClient;
+    private NetworkStream stream;
+    private ClientState state = ClientState.Stopped;
+
+    public ClientState GetState()
+    {
+        return state;
+    }
+
+    public void Connect(string ipAddress, int port)
+    {
+        try
+        {
+            tcpClient = new TcpClient(ipAddress, port);
+            stream = tcpClient.GetStream();
+            state = ClientState.Connected;
+            Console.WriteLine("Client connected.");
+        }
+        catch (Exception ex)
+        {
+            state = ClientState.Error;
+            Console.WriteLine($"Error connecting to server: {ex.Message}");
+        }
+    }
+
+    public void SendFixedLengthData(byte[] data)
+    {
+        try
+        {
+            // Send fixed-length data
+            stream.Write(data, 0, data.Length);
+
+            // Receive fixed-length response data (all 0x00 for now)
+            byte[] responseData = new byte[35];
+            int bytesRead = stream.Read(responseData, 0, responseData.Length);
+
+            // Process response data (not shown in this example)
+            // ...
+        }
+        catch (Exception ex)
+        {
+            state = ClientState.Error;
+            Console.WriteLine($"Error sending/receiving data: {ex.Message}");
+        }
+    }
+
+    public void Close()
+    {
+        stream?.Close();
+        tcpClient?.Close();
+        state = ClientState.Stopped;
+        Console.WriteLine("Client closed.");
+    }
+}
