@@ -1,0 +1,23 @@
+VariableLengthDataServer variableLengthServer = new VariableLengthDataServer();
+variableLengthServer.StartListening(12345);
+
+Console.WriteLine($"Server State: {variableLengthServer.GetState()}");
+variableLengthServer.StartServer();
+
+// To stop the server
+variableLengthServer.StopServer();
+Console.WriteLine($"Server State: {variableLengthServer.GetState()}");
+
+//////
+
+FixedLengthDataServer fixedLengthServer = new FixedLengthDataServer();
+fixedLengthServer.StartListening(12345);
+
+Console.WriteLine($"Server State: {fixedLengthServer.GetState()}");
+fixedLengthServer.StartServer();
+
+// To stop the server
+fixedLengthServer.StopServer();
+Console.WriteLine($"Server State: {fixedLengthServer.GetState()}");
+
+//////
