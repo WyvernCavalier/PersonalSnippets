@@ -1,0 +1,81 @@
+using System;
+using System.Net;
+using System.Net.Sockets;
+
+public enum ServerState
+{
+    Stopped = 0,
+    Connected = 1,
+    Listening = 2,
+    Error = 3
+}
+
+class VariableLengthDataServer
+{
+    private TcpListener listener;
+    private ServerState state = ServerState.Stopped;
+
+    public ServerState GetState()
+    {
+        return state;
+    }
+
+    public void StartListening(int port)
+    {
+        try
+        {
+            listener = new TcpListener(IPAddress.Any, port);
+            listener.Start();
+            state = ServerState.Listening;
+            Console.WriteLine("Server is now listening.");
+        }
+        catch (Exception ex)
+        {
+            state = ServerState.Error;
+            Console.WriteLine($"Error starting server: {ex.Message}");
+        }
+    }
+
+    public void StartServer()
+    {
+        while (state == ServerState.Listening)
+        {
+            try
+            {
+                using (TcpClient client = listener.AcceptTcpClient())
+                using (NetworkStream stream = client.GetStream())
+                {
+                    state = ServerState.Connected; // Update state when a connection is established
+
+                    // Assume received variable-length data
+                    byte[] receivedData = new byte[client.ReceiveBufferSize];
+                    int bytesRead = stream.Read(receivedData, 0, receivedData.Length);
+
+                    // Process data (not shown in this example)
+                    // ...
+
+                    // Respond with fixed-length data (all 0x00 for now)
+                    byte[] responseData = new byte[45];
+                    stream.Write(responseData, 0, responseData.Length);
+                }
+            }
+            catch (SocketException ex) when (ex.SocketErrorCode == SocketError.Interrupted)
+            {
+                // Socket was closed, likely due to StopServer() being called
+                break;
+            }
+            catch (Exception ex)
+            {
+                state = ServerState.Error;
+                Console.WriteLine($"Error accepting client connection: {ex.Message}");
+            }
+        }
+    }
+
+    public void StopServer()
+    {
+        listener?.Stop();
+        state = ServerState.Stopped;
+        Console.WriteLine("Server stopped.");
+    }
+}
