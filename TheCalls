@@ -1,0 +1,52 @@
+class Program
+{
+    static void Main()
+    {
+        // Example for Server A
+        ServerA serverA = new ServerA();
+        serverA.SAR += (sender, data) => Console.WriteLine("Event SAR received");
+        serverA.SAS += (sender, data) => Console.WriteLine("Event SAS received");
+        serverA.Start(12345);
+
+        // Example for Server B
+        ServerB serverB = new ServerB();
+        serverB.SBR += (sender, data) => Console.WriteLine("Event SBR received");
+        serverB.SBS += (sender, data) => Console.WriteLine("Event SBS received");
+        serverB.Start(12346);
+
+        // Example for Client A
+        ClientA clientA = new ClientA();
+        clientA.CAR += (sender, data) => Console.WriteLine("Event CAR received");
+        clientA.SendComplete += (sender, args) =>
+            Console.WriteLine($"SendComplete Event received: Latency {args.Latency} ms");
+        clientA.Connect("127.0.0.1", 12345);
+
+        // Enqueue data to be sent by Client A
+        byte[] dataA1 = Encoding.UTF8.GetBytes("Client A Data 1");
+        byte[] dataA2 = Encoding.UTF8.GetBytes("Client A Data 2");
+        clientA.EnqueueDataToSend(dataA1);
+        clientA.EnqueueDataToSend(dataA2);
+
+        // Example for Client B
+        ClientB clientB = new ClientB();
+        clientB.CBR += (sender, data) => Console.WriteLine("Event CBR received");
+        clientB.SendComplete += (sender, args) =>
+            Console.WriteLine($"SendComplete Event received: Latency {args.Latency} ms");
+        clientB.Connect("127.0.0.1", 12346);
+
+        // Enqueue data to be sent by Client B
+        byte[] dataB1 = Encoding.UTF8.GetBytes("Client B Data 1");
+        byte[] dataB2 = Encoding.UTF8.GetBytes("Client B Data 2");
+        clientB.EnqueueDataToSend(dataB1);
+        clientB.EnqueueDataToSend(dataB2);
+
+        // Keep the application running
+        Console.ReadLine();
+
+        // Close the connections when done
+        serverA.Stop();
+        serverB.Stop();
+        clientA.Close();
+        clientB.Close();
+    }
+}
