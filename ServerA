@@ -1,0 +1,100 @@
+using System;
+using System.Collections.Generic;
+using System.Net.Sockets;
+using System.Threading;
+
+public enum ServerAStatus
+{
+    Stopped = 0,
+    Connected = 1,
+    Error = 3
+}
+
+public class ServerA
+{
+    private TcpListener tcpListener;
+    private TcpClient tcpClient;
+    private NetworkStream stream;
+    private Thread receiveThread;
+    private Queue<byte[]> sendQueue = new Queue<byte[]>();
+    private object queueLock = new object();
+    private bool isBusy = false;
+
+    public event EventHandler<byte[]> SAR;
+    public event EventHandler<byte[]> SAS;
+
+    private ServerAStatus status = ServerAStatus.Stopped;
+
+    public ServerAStatus GetStatus()
+    {
+        return status;
+    }
+
+    public void Start(int port)
+    {
+        tcpListener = new TcpListener(System.Net.IPAddress.Any, port);
+        tcpListener.Start();
+
+        status = ServerAStatus.Connected;
+
+        // Start a thread to listen for incoming connections
+        receiveThread = new Thread(ListenForClients);
+        receiveThread.Start();
+    }
+
+    public void Stop()
+    {
+        tcpListener.Stop();
+        status = ServerAStatus.Stopped;
+    }
+
+    public void EnqueueDataToSend(byte[] data)
+    {
+        lock (queueLock)
+        {
+            sendQueue.Enqueue(data);
+            isBusy = true;
+        }
+    }
+
+    private void ListenForClients()
+    {
+        try
+        {
+            tcpClient = tcpListener.AcceptTcpClient();
+            stream = tcpClient.GetStream();
+
+            while (true)
+            {
+                byte[] buffer = new byte[1024]; // Adjust the buffer size as needed
+                int bytesRead = stream.Read(buffer, 0, buffer.Length);
+
+                if (bytesRead > 0)
+                {
+                    SAR?.Invoke(this, buffer);
+
+                    byte[] replyData = new byte[45]; // Assuming fixed-length response for now
+                    stream.Write(replyData, 0, replyData.Length);
+
+                    lock (queueLock)
+                    {
+                        if (sendQueue.Count > 0)
+                        {
+                            byte[] nextData = sendQueue.Dequeue();
+                            SAS?.Invoke(this, nextData);
+                        }
+                        else
+                        {
+                            isBusy = false;
+                        }
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Server A Error: {ex.Message}");
+            status = ServerAStatus.Error;
+        }
+    }
+}
