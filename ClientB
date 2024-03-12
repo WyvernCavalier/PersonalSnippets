@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Net.Sockets;
+using System.Text;
 using System.Threading;
 
 public enum ClientBStatus
@@ -93,6 +94,15 @@ public class ClientB
             // Send variable-length data
             stream.Write(data, 0, data.Length);
 
+            // Check if there are more items in the queue and set isBusy accordingly
+            lock (queueLock)
+            {
+                if (sendQueue.Count > 0)
+                {
+                    isBusy = true;
+                }
+            }
+
             // Wait for the response
             byte[] replyData = new byte[35]; // Assuming fixed-length response for now
             int bytesRead = stream.Read(replyData, 0, replyData.Length);
@@ -125,6 +135,7 @@ public class ClientB
             status = ClientBStatus.Error;
             Console.WriteLine($"Client B Error: {ex.Message}");
             operationStatus = ClientBOperationStatus.Idle;
+            isBusy = false; // Set isBusy to false in case of an error
         }
     }
 
