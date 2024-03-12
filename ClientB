@@ -1,0 +1,183 @@
+using System;
+using System.Collections.Generic;
+using System.Net.Sockets;
+using System.Threading;
+
+public enum ClientBStatus
+{
+    Stopped = 0,
+    Connected = 1,
+    Error = 3
+}
+
+public enum ClientBOperationStatus
+{
+    Idle = 0,
+    Busy = 1
+}
+
+public class ReceivedDataEventArgs : EventArgs
+{
+    public byte[] ReceivedData { get; }
+
+    public ReceivedDataEventArgs(byte[] receivedData)
+    {
+        ReceivedData = receivedData;
+    }
+}
+
+public class SendCompleteEventArgs : EventArgs
+{
+    public byte[] SentData { get; }
+    public byte[] ReplyData { get; }
+    public int Latency { get; }
+
+    public SendCompleteEventArgs(byte[] sentData, byte[] replyData, int latency)
+    {
+        SentData = sentData;
+        ReplyData = replyData;
+        Latency = latency;
+    }
+}
+
+public class ClientB
+{
+    private TcpClient tcpClient;
+    private NetworkStream stream;
+    private Thread receiveThread;
+    private Queue<byte[]> sendQueue = new Queue<byte[]>();
+    private object queueLock = new object();
+    private bool isBusy = false;
+
+    public event EventHandler<ReceivedDataEventArgs> CBR;
+    public event EventHandler<SendCompleteEventArgs> SendComplete;
+
+    private ClientBStatus status = ClientBStatus.Stopped;
+    private ClientBOperationStatus operationStatus = ClientBOperationStatus.Idle;
+
+    public ClientBStatus GetStatus()
+    {
+        return status;
+    }
+
+    public ClientBOperationStatus GetOperationStatus()
+    {
+        return operationStatus;
+    }
+
+    public void Connect(string ipAddress, int port)
+    {
+        try
+        {
+            tcpClient = new TcpClient(ipAddress, port);
+            stream = tcpClient.GetStream();
+            status = ClientBStatus.Connected;
+
+            // Start a thread to listen for incoming packets
+            receiveThread = new Thread(ReceiveData);
+            receiveThread.Start();
+        }
+        catch (Exception ex)
+        {
+            status = ClientBStatus.Error;
+            Console.WriteLine($"Client B Error: {ex.Message}");
+        }
+    }
+
+    public void SendData(byte[] data)
+    {
+        try
+        {
+            operationStatus = ClientBOperationStatus.Busy;
+
+            // Send variable-length data
+            stream.Write(data, 0, data.Length);
+
+            // Wait for the response
+            byte[] replyData = new byte[35]; // Assuming fixed-length response for now
+            int bytesRead = stream.Read(replyData, 0, replyData.Length);
+
+            // Process response data (not shown in this example)
+            // ...
+
+            // Fire event with sent and reply data
+            int latency = CalculateLatency();
+            SendComplete?.Invoke(this, new SendCompleteEventArgs(data, replyData, latency));
+
+            operationStatus = ClientBOperationStatus.Idle;
+
+            // Check if there are more items in the queue and send next one
+            lock (queueLock)
+            {
+                if (sendQueue.Count > 0)
+                {
+                    byte[] nextData = sendQueue.Dequeue();
+                    SendData(nextData);
+                }
+                else
+                {
+                    isBusy = false;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            status = ClientBStatus.Error;
+            Console.WriteLine($"Client B Error: {ex.Message}");
+            operationStatus = ClientBOperationStatus.Idle;
+        }
+    }
+
+    public void EnqueueDataToSend(byte[] data)
+    {
+        lock (queueLock)
+        {
+            sendQueue.Enqueue(data);
+            isBusy = true;
+        }
+    }
+
+    public void Close()
+    {
+        stream?.Close();
+        tcpClient?.Close();
+        status = ClientBStatus.Stopped;
+        Console.WriteLine("Client B closed.");
+        receiveThread?.Join(); // Wait for the receive thread to finish before closing
+    }
+
+    private void ReceiveData()
+    {
+        try
+        {
+            byte[] buffer = new byte[1024]; // Adjust the buffer size as needed
+
+            while (status == ClientBStatus.Connected)
+            {
+                int bytesRead = stream.Read(buffer, 0, buffer.Length);
+
+                if (bytesRead > 0)
+                {
+                    if (operationStatus == ClientBOperationStatus.Idle)
+                    {
+                        // If idle, fire event with received data
+                        CBR?.Invoke(this, new ReceivedDataEventArgs(buffer));
+                    }
+                    // Additional processing specific to busy state
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            status = ClientBStatus.Error;
+            Console.WriteLine($"Client B Error: {ex.Message}");
+        }
+    }
+
+    private int CalculateLatency()
+    {
+        // Implement your latency calculation logic here
+        // For simplicity, using a placeholder value of 100 ms
+        return 100;
+    }
+}
