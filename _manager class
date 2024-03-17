@@ -1,0 +1,124 @@
+using System;
+using System.Collections.Generic;
+using System.Text;
+namespace Emulator
+{
+    public class TcpConnectionManager
+    {
+        private TcpCommunication server1;
+        private TcpCommunication server2;
+        private TcpCommunication client1;
+        private TcpCommunication client2;
+        private Queue<byte[]> client1SendQueue;
+        private Queue<byte[]> client2SendQueue;
+        private bool client1IsSending;
+        private bool client2IsSending;
+
+        public event EventHandler<byte[]> Client1DataReceived;
+        public event EventHandler<byte[]> Client2DataReceived;
+        public event EventHandler<byte[]> Server1DataReceived;
+        public event EventHandler<byte[]> Server2DataReceived;
+
+        public TcpConnectionManager()
+        {
+            server1 = new TcpCommunication(isServer: true);
+            server2 = new TcpCommunication(isServer: true);
+            client1 = new TcpCommunication(isServer: false);
+            client2 = new TcpCommunication(isServer: false);
+
+            server1.IncomingData += Server1_IncomingData;
+            server2.IncomingData += Server2_IncomingData;
+            client1.IncomingData += Client1_IncomingData;
+            client2.IncomingData += Client2_IncomingData;
+
+            client1SendQueue = new Queue<byte[]>();
+            client2SendQueue = new Queue<byte[]>();
+            client1IsSending = false;
+            client2IsSending = false;
+        }
+
+        public void Start()
+        {
+            server1.Listen(8000);
+            server2.Listen(9000);
+            client1.ConnectTo("127.0.0.1", 8000);
+            client2.ConnectTo("127.0.0.1", 9000);
+        }
+
+        public void SendToServer1(byte[] data)
+        {
+            server1.Send(data, data.Length);
+        }
+
+        public void SendToServer2(byte[] data)
+        {
+            server2.Send(data, data.Length);
+        }
+
+        public void SendToClient1(byte[] data)
+        {
+            client1SendQueue.Enqueue(data);
+            if (!client1IsSending)
+                ProcessClient1SendQueue();
+        }
+
+        public void SendToClient2(byte[] data)
+        {
+            client2SendQueue.Enqueue(data);
+            if (!client2IsSending)
+                ProcessClient2SendQueue();
+        }
+
+        private void ProcessClient1SendQueue()
+        {
+            if (client1SendQueue.Count == 0)
+            {
+                client1IsSending = false;
+                return;
+            }
+
+            byte[] data = client1SendQueue.Dequeue();
+            client1IsSending = true;
+            client1.Send(data, data.Length);
+        }
+
+        private void ProcessClient2SendQueue()
+        {
+            if (client2SendQueue.Count == 0)
+            {
+                client2IsSending = false;
+                return;
+            }
+
+            byte[] data = client2SendQueue.Dequeue();
+            client2IsSending = true;
+            client2.Send(data, data.Length);
+        }
+
+        private void Server1_IncomingData(object sender, byte[] e)
+        {
+            Server1DataReceived?.Invoke(this, e);
+            // Process received data from server 1
+        }
+
+        private void Server2_IncomingData(object sender, byte[] e)
+        {
+            Server2DataReceived?.Invoke(this, e);
+            // Process received data from server 2
+        }
+
+        private void Client1_IncomingData(object sender, byte[] e)
+        {
+            Client1DataReceived?.Invoke(this, e);
+            client1IsSending = false;
+            ProcessClient1SendQueue();
+        }
+
+        private void Client2_IncomingData(object sender, byte[] e)
+        {
+            Client2DataReceived?.Invoke(this, e);
+            client2IsSending = false;
+            ProcessClient2SendQueue();
+        }
+    }
+}
